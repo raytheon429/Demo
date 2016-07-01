@@ -10,7 +10,7 @@
         android:theme="@style/AppTheme">
         <meta-data
             android:name="com.amap.api.v2.apikey"
-            android:value="ee1327ddab42a9f6ad2b82a95dc7c152">
+            android:value="992195cf67f56160f03c66f36b289bef">
         </meta-data>
         <service android:name="com.amap.api.location.APSService"></service>
 
@@ -35,8 +35,7 @@
     //定位包、导航包需要的额外权限（注：基础权限也需要）
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
-    <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
 
 
 </manifest>

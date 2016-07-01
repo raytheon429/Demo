@@ -19,7 +19,6 @@ import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationListener;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
-import com.amap.api.maps.model.MyLocationStyle;
 import com.amap.api.services.core.LatLonPoint;
 import com.amap.api.services.nearby.NearbySearch;
 import com.amap.api.services.nearby.NearbySearchFunctionType;
@@ -38,16 +37,15 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     MapView mMapView = null;
     UiSettings mUiSettings = null;
     private AMap aMap = null;
-    private Button mChidouButton = null;
     public Marker mMarker = null;
-    public LatLonPoint mCenterPoint = new LatLonPoint(1,1);
-    //
+    public LatLonPoint mCenterPoint = new LatLonPoint(1,1);  //自己的位置
+    public LatLng mMarkerPoint = new LatLng(1,1);  //覆盖物位置
+    public int nCount = 0;   //覆盖物计数
     private OnLocationChangedListener mListener;
-    //声明AMapLocationClient类对象
-    public AMapLocationClient mAMapLocationClient = null;
-    //声明mLocationOption对象
+    public AMapLocationClient mAMapLocationClient = null;   //声明定位客户端类对象
+    //声明AMapLocationClientOption对象
     public AMapLocationClientOption mLocationOption = null;
-    //
+    //声明附近派单对象
     public NearbySearch mNearbySearch = null;
 
 
@@ -67,6 +65,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             public void onUserInfoCleared(int i) {
                 if(i == 1000){
                     mMarker.remove();
+                    nCount = 0;
                 }
             }
 
@@ -85,11 +84,20 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
 
             @Override
             public void onNearbyInfoUploaded(int i) {
+                if (i == 1000){
+                    //添加标志
+                    MarkerOptions markerOption = new MarkerOptions();
+                    markerOption.position(mMarkerPoint);
+                    mMarker = aMap.addMarker(markerOption);
+                    mMarker.setDraggable(true);
+                    mMarker.setTitle("User1");
+                    nCount = 1;
+                }
             }
         });
 
-        mChidouButton = (Button)findViewById(R.id.chidoubutton);
-        mChidouButton.setOnClickListener(new View.OnClickListener() {
+        Button chidouButton = (Button)findViewById(R.id.chidoubutton);
+        chidouButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 //设置搜索条件
@@ -99,9 +107,9 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                 //设置搜索的坐标体系
                 query.setCoordType(NearbySearch.AMAP);
                 //设置搜索半径
-                query.setRadius(20);
+                query.setRadius(50);
                 //设置查询的时间
-                query.setTimeRange(10000);
+                query.setTimeRange(1800);
                 //设置查询的方式驾车还是距离
                 query.setType(NearbySearchFunctionType.DRIVING_DISTANCE_SEARCH);
                 //调用异步查询接口
@@ -113,6 +121,78 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         //初始化地图
         InitMap();
     }
+
+    private void InitMap()
+    {
+        if (aMap == null)
+        {
+            aMap = mMapView.getMap();
+            mUiSettings = aMap.getUiSettings();
+        }
+        aMap.setLocationSource(this);//设置定位按钮监听源
+        aMap.setMyLocationType(AMap.LOCATION_TYPE_MAP_FOLLOW);// 设置定位的类型为定位模式，参见类AMap。
+        aMap.setMyLocationEnabled(true);// 设置为true表示显示定位层并可触发定位，false表示隐藏定位层并不可触发定位，默认是false
+        //设置地图单击事件
+        aMap.setOnMapClickListener(new AMap.OnMapClickListener() {
+            @Override
+            public void onMapClick(LatLng latLng) {
+                if (nCount == 0){
+                    UploadInfo loadInfo = new UploadInfo();
+                    //设置上传位置的坐标系支持AMap坐标数据与GPS数据
+                    loadInfo.setCoordType(NearbySearch.AMAP);
+                    //设置上传数据位置,位置的获取推荐使用高德定位sdk进行获取
+                    loadInfo.setPoint(new LatLonPoint(latLng.latitude, latLng.longitude));
+                    //设置上传用户id
+                    loadInfo.setUserID("User1");
+                    //调用异步上传接口
+                    mNearbySearch.uploadNearbyInfoAsyn(loadInfo);
+                    mMarkerPoint = latLng;
+                }
+            }
+        });
+        CameraUpdate cu = CameraUpdateFactory.zoomTo(20);
+        aMap.moveCamera(cu);
+
+        mUiSettings.setMyLocationButtonEnabled(true); // 是否显示默认的定位按钮
+
+        // 初始化定位客户端
+        mAMapLocationClient = new AMapLocationClient(getApplicationContext());
+        //设置定位回调监听
+        mAMapLocationClient.setLocationListener(this);
+        //初始化定位参数
+        mLocationOption = new AMapLocationClientOption();
+        //设置定位模式为高精度模式，Battery_Saving为低功耗模式，Device_Sensors是仅设备模式
+        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+        //设置定位间隔,单位毫秒,默认为2000ms
+        mLocationOption.setInterval(2000);
+        //给定位客户端对象设置定位参数
+        mAMapLocationClient.setLocationOption(mLocationOption);
+        //启动定位
+        mAMapLocationClient.startLocation();
+    }
+
+    @Override
+    public void onLocationChanged(AMapLocation aMapLocation) {
+        if (mListener != null && aMapLocation != null) {
+            if (aMapLocation.getErrorCode() == 0) {
+                mListener.onLocationChanged(aMapLocation);// 显示系统小蓝点
+                mCenterPoint.setLatitude(aMapLocation.getLatitude());
+                mCenterPoint.setLongitude(aMapLocation.getLongitude());
+            }
+        }
+
+    }
+
+    @Override
+    public void activate(OnLocationChangedListener onLocationChangedListener) {
+        mListener = onLocationChangedListener;
+    }
+
+    @Override
+    public void deactivate() {
+        mListener = null;
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -139,101 +219,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         //在activity执行onSaveInstanceState时执行mMapView.onSaveInstanceState (outState)，实现地图生命周期管理
         mMapView.onSaveInstanceState(outState);
     }
-
-    private void InitMap()
-    {
-        if (aMap == null)
-        {
-            aMap = mMapView.getMap();
-            mUiSettings = aMap.getUiSettings();
-        }
-        aMap.setLocationSource(this);//设置定位按钮监听源
-        aMap.setMyLocationType(AMap.LOCATION_TYPE_LOCATE);// 设置定位的类型为定位模式，参见类AMap。
-        aMap.setMyLocationEnabled(true);// 设置为true表示显示定位层并可触发定位，false表示隐藏定位层并不可触发定位，默认是false
-        aMap.setOnMapClickListener(new AMap.OnMapClickListener() {
-            @Override
-            public void onMapClick(LatLng latLng) {
-                UploadInfo loadInfo = new UploadInfo();
-                //设置上传位置的坐标系支持AMap坐标数据与GPS数据
-                loadInfo.setCoordType(NearbySearch.AMAP);
-                //设置上传数据位置,位置的获取推荐使用高德定位sdk进行获取
-                loadInfo.setPoint(new LatLonPoint(latLng.latitude, latLng.longitude));
-                //设置上传用户id
-                loadInfo.setUserID("User1");
-                //调用异步上传接口
-                mNearbySearch.uploadNearbyInfoAsyn(loadInfo);
-                //添加标志
-                aMap.clear();
-                MarkerOptions markerOption = new MarkerOptions();
-                markerOption.position(new LatLng(latLng.latitude, latLng.longitude));
-                mMarker = aMap.addMarker(markerOption);
-            }
-        });//设置地图单击事件
-
-        mUiSettings.setMyLocationButtonEnabled(true); // 是否显示默认的定位按钮
-        // 初始化定位
-        mAMapLocationClient = new AMapLocationClient(getApplicationContext());
-        //设置定位回调监听
-        mAMapLocationClient.setLocationListener(this);
-
-        //初始化定位参数
-        mLocationOption = new AMapLocationClientOption();
-        //设置定位模式为高精度模式，Battery_Saving为低功耗模式，Device_Sensors是仅设备模式
-        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-        //设置是否返回地址信息（默认返回地址信息）
-        mLocationOption.setNeedAddress(true);
-        //设置是否只定位一次,默认为false
-        mLocationOption.setOnceLocation(false);
-        //设置是否强制刷新WIFI，默认为强制刷新
-        mLocationOption.setWifiActiveScan(true);
-        //设置是否允许模拟位置,默认为false，不允许模拟位置
-        mLocationOption.setMockEnable(false);
-        //设置定位间隔,单位毫秒,默认为2000ms
-        mLocationOption.setInterval(2000);
-        //给定位客户端对象设置定位参数
-        mAMapLocationClient.setLocationOption(mLocationOption);
-        //启动定位
-        mAMapLocationClient.startLocation();
-    }
-
-    @Override
-    public void onLocationChanged(AMapLocation aMapLocation) {
-        if (aMapLocation != null) {
-            if (aMapLocation.getErrorCode() == 0) {
-                UpdatePosition(aMapLocation);
-            }
-        }
-    }
-
-    //更新地图中心位置
-    public void UpdatePosition(AMapLocation aMapLocation)
-    {
-        LatLng pos = new LatLng(aMapLocation.getLatitude(), aMapLocation.getLongitude());
-        mCenterPoint.setLatitude(aMapLocation.getLatitude());
-        mCenterPoint.setLongitude(aMapLocation.getLongitude());
-        //
-        CameraUpdate cu = CameraUpdateFactory.changeLatLng(pos);
-        //
-        aMap.moveCamera(cu);
-    }
-
-    public void PlaceMarker(int type)
-    {
-        switch(type)
-        {
-            case 1:break;
-            default: break;
-        }
-
-    }
-
-    @Override
-    public void activate(OnLocationChangedListener onLocationChangedListener) {
-        mListener = onLocationChangedListener;
-    }
-
-    @Override
-    public void deactivate() {
-        mListener = null;
-    }
 }
+
+
